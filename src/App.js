@@ -1,56 +1,48 @@
-import './App.css';
-import Packet from "./Packet"
-import { PieChart } from 'react-minimal-pie-chart';
+import React, { Component } from "react";
+import "./App.css";
 
-function App() {
-  const handleInputChange = () => {
+import "tabler-react/dist/Tabler.css";
+// import "tabler-react/dist/Tabler.RTL.css";
 
-  };
+import { Card, Table, Button, List } from "tabler-react";
 
-  const chartData = [
-    { title: 'On', value: 10, color: '#CBE3EE' },
-    { title: 'Off', value: 15, color: '#96C4D8' },
-    { title: 'Color', value: 20, color: '#548BA1' },
-    { title: 'Level', value: 20, color: '#2A3E4D' },
-  ];
+const data = [
+    {no:"19", time:"93.606933", source:"0x0000", destination:"0xb474", protocol:"ZigBee HA", length:"74", info: "ZCL OnOff: On, Seq: 33"},
+    {no:"273", time:"398.152646", source:"0x0000", destination:"0xb474", protocol:"ZigBee HA", length:"74", info: "ZCL OnOff: Off, Seq: 42"}
+];
 
-  return (
-    <div className="container">
-      <div className="body">
-        <div className="left">
-          <div className="title">
-            <div>No.</div>
-            <div>Command Type</div>
-            <div>Status</div>
-          </div>
-          <div className="accordion accordion-flush" id="accordionFlushExample">
-            <Packet no={1} status={"success"}></Packet>
-            <Packet no={2} status={"success"}></Packet>
-            <Packet no={3} status={"error"}></Packet>
-          </div>
-        </div>
-        <div className="right">
-          <div className="chart">
-            <h3 style={{paddingBottom: "10px"}}>Commands (%)</h3>
-            <PieChart
-              data={chartData}
-              label={({ dataEntry }) => dataEntry.title + " " + dataEntry.value + "%"}
-              labelStyle={{ fontSize: "5px"}}
-            />
-          </div>
-          <div className="percentage flex">
-            <span>3</span>
-            <span>/</span>
-            <span>12545</span>
-            <span>개</span>
-          </div>
-          <div className="mb-3">
-            <input className="form-control" type="file" id="formFile" multiple onChange={handleInputChange}/>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+export default class MyCard extends Component {
+    render() {
+        return (
+            <Card>
+                <Card.Header className="header">
+                    <Card.Title className="title"><span style={{fontWeight: "bold"}}>Packet Analyzer</span></Card.Title>
+                </Card.Header>
+                <Table>
+                    <Table.Header>
+                        <Table.ColHeader>No.</Table.ColHeader>
+                        <Table.ColHeader>Time</Table.ColHeader>
+                        <Table.ColHeader>Source</Table.ColHeader>
+                        <Table.ColHeader>Destination</Table.ColHeader>
+                        <Table.ColHeader>Protocol</Table.ColHeader>
+                        <Table.ColHeader>Length</Table.ColHeader>
+                        <Table.ColHeader>Info</Table.ColHeader>
+                    </Table.Header>
+                    <Table.Body>
+                        {data.map(({no, time, source, destination, protocol, length, info}) => (
+                            <Table.Row>
+                                <Table.Col>{no}</Table.Col>
+                                <Table.Col>{time}</Table.Col>
+                                <Table.Col>{source}</Table.Col>
+                                <Table.Col>{destination}</Table.Col>
+                                <Table.Col>{protocol}</Table.Col>
+                                <Table.Col>{length}</Table.Col>
+                                <Table.Col>{info}</Table.Col>
+                            </Table.Row>
+                        ))}
+                    </Table.Body>
+                </Table>
+            </Card>
+        )
+    }
 }
-
-export default App;
