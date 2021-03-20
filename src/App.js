@@ -11,12 +11,19 @@ const data = [
     {no:"273", time:"398.152646", source:"0x0000", destination:"0xb474", protocol:"ZigBee HA", length:"74", info: "ZCL OnOff: Off, Seq: 42"}
 ];
 
+const handleInputChange = () => {
+
+}
+
 export default class MyCard extends Component {
     render() {
         return (
             <Card>
                 <Card.Header className="header">
                     <Card.Title className="title"><span style={{fontWeight: "bold"}}>Packet Analyzer</span></Card.Title>
+                    <div className="mb-3" style={{position: "absolute", right: "0", paddingTop: "10px", paddingRight: "30px"}}>
+                        <input className="form-control" type="file" id="formFile" multiple onChange={handleInputChange}/>
+                    </div>
                 </Card.Header>
                 <Table>
                     <Table.Header>
