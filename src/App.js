@@ -1,18 +1,27 @@
 import Papa from "papaparse";
-import React, { useState } from "react";
-import "./App.css";
+import React, { useState, useEffect } from "react";
 import "tabler-react/dist/Tabler.css";
 import { Card, Table } from "tabler-react";
-
-// const data = [
-//     {no:"19", time:"93.606933", source:"0x0000", destination:"0xb474", protocol:"ZigBee HA", length:"74", info: "ZCL OnOff: On, Seq: 33"},
-//     {no:"273", time:"398.152646", source:"0x0000", destination:"0xb474", protocol:"ZigBee HA", length:"74", info: "ZCL OnOff: Off, Seq: 42"}
-// ];
 
 export default () => {
     const [data, setData] = useState(null);
     const [packetCSV, setPacketCSV] = useState(null);
     const [packetJSON, setPacketJSON] = useState(null);
+
+    useEffect(() => {
+        if (packetCSV !== null && packetJSON !== null) {
+            console.log("Data matching start");
+            setData(() => {
+                const result = packetCSV.map(packet => {
+                    return {
+                        ...packet,
+                        timestamp: packetJSON[packet.no]
+                    }
+                });
+                return result;
+            });
+        }
+    }, [packetCSV, packetJSON]);
 
     const readFiles = files => {
         for(let i = 0; i < files.length; i++) {
@@ -45,12 +54,11 @@ export default () => {
                         try {
                             const json = JSON.parse(e.target.result);
                             setPacketJSON(() => {
-                                return json.map(packet => {
-                                    const result = {};
-                                    result.no = packet._source.layers.frame["frame.number"];
-                                    result.time = packet._source.layers.frame["frame.time"];
-                                    return result;
-                                })
+                                const result = {};
+                                json.forEach(packet => {
+                                    result[packet._source.layers.frame["frame.number"]] = packet._source.layers.frame["frame.time"];
+                                });
+                                return result;
                             });
                         } catch (err) {
                             console.log(err);
@@ -72,16 +80,13 @@ export default () => {
         if (event.target.files.length <= 0) return;
         const files = event.target.files;
         readFiles(files);
-        console.log("packet")
-        console.log(packetCSV);
-        console.log(packetJSON);
     }
 
     return (
         <Card>
             <Card.Header className="header">
-                <Card.Title className="title"><span style={{fontWeight: "bold"}}>Packet Analyzer</span></Card.Title>
-                <div className="mb-3" style={{position: "absolute", right: "20px", paddingTop: "10px", paddingRight: "30px"}}>
+                <Card.Title style={{"fontWeight": "1000"}}><span style={{fontWeight: "bold"}}>Packet Analyzer</span></Card.Title>
+                <div className="mb-3" style={{position: "absolute", right: "10px", paddingTop: "10px", paddingRight: "30px"}}>
                     <input className="form-control" type="file" id="formFile" multiple onChange={handleInputChange} />
                 </div>
             </Card.Header>
@@ -97,10 +102,7 @@ export default () => {
                     <Table.ColHeader>Timestamp</Table.ColHeader>
                 </Table.Header>
                 <Table.Body>
-                    {data === null && (
-                        <div style={{"fontSize": "20px", "color": "#cccccc", "fontWeight": "700", "padding": "10px 0px 0px 10px"}}>No data</div>
-                    )}
-                    {data !== null && data.map(({no, time, source, destination, protocol, length, info, timestamp}) => (
+                    {data !== null && data.map(({no, time, source, destination, protocol, length, info, timestamp}, idx) => (
                         <Table.Row key={no}>
                             <Table.Col>{no}</Table.Col>
                             <Table.Col>{time}</Table.Col>
