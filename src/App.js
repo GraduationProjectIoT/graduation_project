@@ -21,21 +21,33 @@ export default () => {
                 Papa.parse(files[i], {
                     header: true,
                     complete: result => { 
-                        setPacketCSV(curr => result.data); 
+                        setPacketCSV(() => (
+                            result.data.map(packet => {
+                                return {
+                                    no: packet["No."],
+                                    time: packet["Time"],
+                                    source: packet["Source"],
+                                    destination: packet["Destination"],
+                                    protocol: packet["Protocol"],
+                                    length: packet["Length"],
+                                    info: packet["Info"],
+                                }
+                            })
+                        )); 
                         console.log(result.data)
                     }
                 });
             } else if (files[i].name.indexOf("json") >= 0) {
                 console.log("json file: ", files[i].name);
                 const reader = new FileReader();
-                reader.onload = (theFile => {
+                reader.onload = (() => {
                     return e => {
                         try {
                             const json = JSON.parse(e.target.result);
-                            setPacketJSON(curr => {
+                            setPacketJSON(() => {
                                 return json.map(packet => {
                                     const result = {};
-                                    result.number = packet._source.layers.frame["frame.number"];
+                                    result.no = packet._source.layers.frame["frame.number"];
                                     result.time = packet._source.layers.frame["frame.time"];
                                     return result;
                                 })
