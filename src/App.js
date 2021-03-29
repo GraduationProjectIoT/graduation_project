@@ -83,39 +83,47 @@ export default () => {
     }
 
     return (
-        <Card>
-            <Card.Header className="header">
-                <Card.Title style={{"fontWeight": "1000"}}><span style={{fontWeight: "bold"}}>Packet Analyzer</span></Card.Title>
+        <div>
+            <div style={{height: "50px", width: "100%", display: "flex", borderBottom: "1px solid #dee2e6", background: "white", alignItems: "center"}}>
+                <div style={{fontSize: "1.2em", fontWeight: "1000", paddingLeft: "10px", color: "#222222"}}>Packet Analyzer</div>
                 <div className="mb-3" style={{position: "absolute", right: "10px", paddingTop: "10px", paddingRight: "30px"}}>
                     <input className="form-control" type="file" id="formFile" multiple onChange={handleInputChange} />
                 </div>
-            </Card.Header>
-            <Table>
-                <Table.Header>
-                    <Table.ColHeader>No.</Table.ColHeader>
-                    <Table.ColHeader>Time</Table.ColHeader>
-                    <Table.ColHeader>Source</Table.ColHeader>
-                    <Table.ColHeader>Destination</Table.ColHeader>
-                    <Table.ColHeader>Protocol</Table.ColHeader>
-                    <Table.ColHeader>Length</Table.ColHeader>
-                    <Table.ColHeader>Info</Table.ColHeader>
-                    <Table.ColHeader>Timestamp</Table.ColHeader>
-                </Table.Header>
-                <Table.Body>
-                    {data !== null && data.map(({no, time, source, destination, protocol, length, info, timestamp}, idx) => (
-                        <Table.Row key={no}>
-                            <Table.Col>{no}</Table.Col>
-                            <Table.Col>{time}</Table.Col>
-                            <Table.Col>{source}</Table.Col>
-                            <Table.Col>{destination}</Table.Col>
-                            <Table.Col>{protocol}</Table.Col>
-                            <Table.Col>{length}</Table.Col>
-                            <Table.Col>{info}</Table.Col>
-                            <Table.Col>{timestamp}</Table.Col>
-                        </Table.Row>
-                    ))}
-                </Table.Body>
-            </Table>
-        </Card>
+            </div>
+            <div style={{overflow: "auto", maxHeight: "500px", borderBottom: "1px solid #dee2e6"}}>
+                <Table>
+                    <Table.Header>
+                        <Table.ColHeader>No.</Table.ColHeader>
+                        <Table.ColHeader>Time</Table.ColHeader>
+                        <Table.ColHeader>Source</Table.ColHeader>
+                        <Table.ColHeader>Destination</Table.ColHeader>
+                        <Table.ColHeader>Protocol</Table.ColHeader>
+                        <Table.ColHeader>Length</Table.ColHeader>
+                        <Table.ColHeader>Info</Table.ColHeader>
+                        <Table.ColHeader>Timestamp</Table.ColHeader>
+                    </Table.Header>
+                    <Table.Body style={{"background": "white"}}>
+                        {data !== null && data.map(({no, time, source, destination, protocol, length, info, timestamp}, idx) => (
+                            <Table.Row key={no}>
+                                <Table.Col>{no}</Table.Col>
+                                <Table.Col>{time}</Table.Col>
+                                <Table.Col>{source}</Table.Col>
+                                <Table.Col>{destination}</Table.Col>
+                                <Table.Col>{protocol}</Table.Col>
+                                <Table.Col>{length}</Table.Col>
+                                <Table.Col>{info}</Table.Col>
+                                <Table.Col>{timestamp}</Table.Col>
+                            </Table.Row>
+                        ))}
+                    </Table.Body>
+                </Table>
+            </div>
+            <div>
+                <div>여기 3줄 div 지우고 작성하면댐</div>
+                <div>참고로 난 <a href="https://tabler-react.com/documentation/">Tabler-React Documentation</a> 이거씀!!</div>
+                <div><a href="https://tabler-react.com/">예시</a> 이거는 tabler-react 예시 보여주는거!</div>
+            </div>
+        </div>
+        
     )
 }
