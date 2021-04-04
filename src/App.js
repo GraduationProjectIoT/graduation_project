@@ -67,7 +67,7 @@ export default () => {
                     }
                 })(files[i]);
                 reader.readAsText(files[i]);
-            } else if (files[i].name.indexOf(".html")) {
+            } else if (files[i].name.indexOf(".html") >= 0) {
                 console.log(files[i])
             } else {
                 console.log("Wrong file");
