@@ -35,4 +35,5 @@ function getData() {
                 scrapingResult['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
                 console.log(scrapingResult)
         });
-"samsung_login.js" 46L, 2159C
+})
+}
