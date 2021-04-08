@@ -9,31 +9,37 @@ scrapingResult = {
     'feature': '',
 };
 (async () => {
-        const browser = await puppeteer.launch({defaultViewport: null, headless: false,slowMo:10});
-        const page = await browser.newPage();
+  	const browser = await puppeteer.launch({defaultViewport: null, headless: false,slowMo:10});
+	const page = await browser.newPage();
 
-        const naver_id = "hyunahshim@naver.com";
-        const naver_pw = "bgriorwln!79";
-        await page.goto('https://account.samsung.com/accounts/v1/ST/signInGate?response_type=code&client_id=4dt548jm01&redirect_uri=https:%2F%2Faccount.smartthings.com%2FssoCallback&goBackURL=https:%2F%2Faccount.smartthings.com%2Flogin&state=92rbtl9rcqvpsne3cj2g1o1vlfv1sigmsi3i8jg3nftc7rq82k61uba6b4f40860aHR0cHM6Ly9ncmFwaC1hcDAyLWFwbm9ydGhlYXN0Mi5hcGkuc21hcnR0aGluZ3MuY29tLw%3D%3D&countryCode=&locale=ko&gBtnYN=N');
+  	const naver_id = "hyunahshim@naver.com";
+  	const naver_pw = "bgriorwln!79";
+  	await page.goto('https://account.samsung.com/accounts/v1/ST/signInGate?response_type=code&client_id=4dt548jm01&redirect_uri=https:%2F%2Faccount.smartthings.com%2FssoCallback&goBackURL=https:%2F%2Faccount.smartthings.com%2Flogin&state=92rbtl9rcqvpsne3cj2g1o1vlfv1sigmsi3i8jg3nftc7rq82k61uba6b4f40860aHR0cHM6Ly9ncmFwaC1hcDAyLWFwbm9ydGhlYXN0Mi5hcGkuc21hcnR0aGluZ3MuY29tLw%3D%3D&countryCode=&locale=ko&gBtnYN=N');
 
 
-        await page.type('#iptLgnPlnID', naver_id);
-        await page.type('#iptLgnPlnPD', naver_pw);
-        await page.click('#signInButton[type=button]');
+	await page.type('#iptLgnPlnID', naver_id);
+	await page.type('#iptLgnPlnPD', naver_pw);
+	await page.click('#signInButton[type=button]');
 
-        await page.waitForNavigation();
-        await page.goto(url);
-        await page.screenshot({ path: 'naver.png', fullPage:true });
+	await page.waitForNavigation();
+	await page.goto(url);
 
 function getData() {
     request(url, function (err, res, body) {
         const $ = cheerio.load(body);
 
         const bodyList = $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
-                scrapingResult['date'] = String($(element).find('td:nth-of-type(1)').text().trim());
-                scrapingResult['name'] = String($(element).find('td:nth-of-type(4)').text().trim());
-                scrapingResult['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
-                console.log(scrapingResult)
+            	scrapingResult['date'] = String($(element).find('td:nth-of-type(1)').text().trim());
+		scrapingResult['name'] = String($(element).find('td:nth-of-type(4)').text().trim());
+        	scrapingResult['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
+		console.log(scrapingResult)
         });
-})
+    });
 }
+
+getData();
+
+  await browser.close();
+})();
+
+
