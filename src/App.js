@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import "tabler-react/dist/Tabler.css";
 import { Table } from "tabler-react";
 import cheerio from "cheerio";
-import parse from "html-react-parser";
 
 export default () => {
     const [data, setData] = useState(null);
@@ -14,6 +13,7 @@ export default () => {
     useEffect(() => {
         if (packetCSV !== null && packetJSON !== null) {
             console.log("Data matching start");
+            // 데이터들 매칭
             setData(() => {
                 const result = packetCSV.map(packet => {
                     return {
@@ -80,7 +80,6 @@ export default () => {
                             
                             setPacketHTML(() => {
                                 const results = [];
-                                var j = 0;
                                 const bodyList = $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
                                     const result = {};
                                     result['date'] = String($(element).find('td:nth-of-type(1)').text().trim());
@@ -113,35 +112,7 @@ export default () => {
         const files = event.target.files;
         readFiles(files);
     }
-
-    //const parse = require('html-react-parser');
-    parse('<p>Hello, World!</p>'); 
-    // React.createElement('p', {}, 'Hello, World!')
-    // const scrap = files =>{
-    //     const url = "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/65e57df1-070a-4f31-b5aa-86cfd68e529f/Events_List.html?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAT73L2G45O3KS52Y5%2F20210408%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20210408T122125Z&X-Amz-Expires=86400&X-Amz-Signature=e3a53131bd4513fc077f75e87ae657f94c2c39417f3b323d0f0e0844f6489581&X-Amz-SignedHeaders=host&response-content-disposition=filename%20%3D%22Events%2520List.html%22"
-    //     const browser = await puppeteer.launch({defaultViewport: null, headless: false,slowMo:10});
-    //     const page = await browser.newPage();
-    //     scrapingResult = {
-    //         'date': '',
-    //         'name': '',
-    //         'feature': '',
-    //     };
-    //     page.goto(url);
-    //     request(url, function (err, res, body) {
-    //         const $ = cheerio.load(body);
     
-    //         const bodyList = $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
-    //                 scrapingResult['date'] = String($(element).find('td:nth-of-type(1)').text().trim());
-    //         scrapingResult['name'] = String($(element).find('td:nth-of-type(4)').text().trim());
-    //             scrapingResult['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
-    //         console.log(scrapingResult)
-    //         });
-    //     });
-    //     browser.close();
-    // }
-    
-
-
     return (
         <div>
             <div style={{height: "50px", width: "100%", display: "flex", borderBottom: "1px solid #dee2e6", background: "white", alignItems: "center"}}>
