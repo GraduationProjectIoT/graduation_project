@@ -1,10 +1,8 @@
 import Papa from "papaparse";
 import React, { useState, useEffect } from "react";
 import "tabler-react/dist/Tabler.css";
-import { Card, Table } from "tabler-react";
-//import puppeteer from "puppeteer";
+import { Table } from "tabler-react";
 import cheerio from "cheerio";
-import request from "request";
 import parse from "html-react-parser";
 
 export default () => {
@@ -56,9 +54,9 @@ export default () => {
                 const reader = new FileReader();
                 reader.onload = (() => {
                     return e => {
-                        try {               // file을 넣으면 이 함수가 실행 event - e // files[i] = e
+                        try {
                             const json = JSON.parse(e.target.result);
-                            setPacketJSON(() => {   //packetjson이라는 변수 안에다 어떤 값으로 설정하겠다는 함수
+                            setPacketJSON(() => {
                                 const result = {};
                                 json.forEach(packet => {
                                     result[packet._source.layers.frame["frame.number"]] = packet._source.layers.frame["frame.time"];
@@ -73,27 +71,22 @@ export default () => {
                     }
                 })(files[i]);
                 reader.readAsText(files[i]);
-                //console.log(packetJSON);
             } else if (files[i].name.indexOf(".html") >= 0) {
-                //console.log(files[i]);
-                //console.log(files);
-                
                 const reader = new FileReader();
                 reader.onload = (() => {
-                    return e=> {
+                    return e => {
                         try {
                             const $ = cheerio.load(e.target.result);
                             
                             setPacketHTML(() => {
-                                const results = {};
+                                const results = [];
                                 var j = 0;
                                 const bodyList = $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
                                     const result = {};
                                     result['date'] = String($(element).find('td:nth-of-type(1)').text().trim());
                                     result['name'] = String($(element).find('td:nth-of-type(4)').text().trim());
                                     result['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
-                                    results[j] = result;
-                                    j = j+1;
+                                    results.push(result);
                                 });
                                 console.log(results);
                                 return results;           
@@ -107,13 +100,6 @@ export default () => {
                 })(files[i]);
                 reader.readAsText(files[i]);
                 console.log(packetHTML);
-
-            //     reader.onload = () => {
-            //         console.log(reader.result);
-            //         reader.readAsText(files[i]);
-            //     }
-
-            // console.log(fileReader.readAsText(files[i]));
 
             } else {
                 console.log("Wrong file");
