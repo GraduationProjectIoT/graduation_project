@@ -82,7 +82,10 @@ export default () => {
                                 const results = [];
                                 const bodyList = $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
                                     const result = {};
-                                    result['date'] = String($(element).find('td:nth-of-type(1)').text().trim());
+                                    const splitedDate = String($(element).find('td:nth-of-type(1)').text().trim()).split(" ");
+                                    const day = splitedDate[0].split(" ")[0];
+                                    const time = splitedDate[1].split(":");
+                                    result['date'] = new Date(day.split("-")[0], parseInt(day.split("-")[1]) - 1, day.split("-")[2], splitedDate[2] === "오후" ? parseInt(time[0]) + 12 : time[0], time[1], time[2]);
                                     result['name'] = String($(element).find('td:nth-of-type(4)').text().trim());
                                     result['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
                                     results.push(result);
