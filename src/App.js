@@ -20,7 +20,7 @@ export default () => {
                         value: packetJSON[packet.no]["value"]
                     }
                 });
-                return result;
+                return result.filter(packet => packet.value !== "");
             });
         }
     }, [packetCSV, packetJSON]);
@@ -31,10 +31,9 @@ export default () => {
                 Papa.parse(files[i], {
                     header: true,
                     complete: result => { 
-                        console.log("length", result.data.length);
-                        setPacketCSV(() => {
-                            result.data.pop();
-                            const returnValue = result.data.map((packet, idx) => {
+                        result.data.pop();
+                        setPacketCSV(() => (
+                            result.data.map(packet => {
                                 return {
                                     no: packet["No."],
                                     time: packet["Time"],
@@ -45,10 +44,7 @@ export default () => {
                                     info: packet["Info"],
                                 }
                             })
-                            console.log("csv", returnValue)
-                            return returnValue
-                        }
-                    ); 
+                        ));
                     }
                 });
             } else if (files[i].name.indexOf("json") >= 0) {
@@ -60,9 +56,13 @@ export default () => {
                             setPacketJSON(() => {
                                 const result = {};
                                 json.forEach(packet => {
-                                    result[packet._source.layers.frame["frame.number"]] = {"timestamp": ""};
-                                    result[packet._source.layers.frame["frame.number"]]["timestamp"] = packet._source.layers.frame["frame.time"];
-                                    console.log(result);
+                                    const timestamp = packet._source.layers.frame["frame.time"];
+                                    let splitedDate = timestamp.split(" ");
+                                    splitedDate.pop();
+                                    splitedDate.pop();
+
+                                    result[packet._source.layers.frame["frame.number"]] = {"timestamp": "", "value": ""};
+                                    result[packet._source.layers.frame["frame.number"]]["timestamp"] = new Date(splitedDate.join(" "));
 
                                     let value = "";
                                     if ("zbee_zcl" in packet._source.layers) {
@@ -85,12 +85,11 @@ export default () => {
                                             }
                                             // color인 경우
                                             else if ("zbee_zcl_lighting.color_control.color_temp" in payload) {
-                                                value = payload["zbee_zcl_lighting.color_control.color_temp"];
+                                                value = Math.round(parseInt(1000000 / parseInt(payload["zbee_zcl_lighting.color_control.color_temp"])) / 100) * 100
                                             }
                                         }
-
-                                        result[packet._source.layers.frame["frame.number"]]["value"] = value;
                                     }
+                                    result[packet._source.layers.frame["frame.number"]]["value"] = value;
                                 });
                                 return result;
                             });
@@ -120,7 +119,8 @@ export default () => {
                                     result['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
                                     results.push(result);
                                 });
-                                console.log(results)
+                                results.reverse();
+                                console.log(results);
                                 return results;           
                         });
                         
@@ -177,7 +177,7 @@ export default () => {
                                 <Table.Col>{length}</Table.Col>
                                 <Table.Col>{info}</Table.Col>
                                 <Table.Col>{value}</Table.Col>
-                                <Table.Col>{timestamp}</Table.Col>
+                                <Table.Col>{timestamp.toString()}</Table.Col>
                             </Table.Row>
                         ))}
                     </Table.Body>
