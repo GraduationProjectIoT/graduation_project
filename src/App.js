@@ -12,13 +12,12 @@ export default () => {
 
     useEffect(() => {
         if (packetCSV !== null && packetJSON !== null) {
-            console.log("Data matching start");
-            // 데이터들 매칭
             setData(() => {
                 const result = packetCSV.map(packet => {
                     return {
                         ...packet,
-                        timestamp: packetJSON[packet.no]
+                        timestamp: packetJSON[packet.no]["timestamp"],
+                        value: packetJSON[packet.no]["value"]
                     }
                 });
                 return result;
@@ -29,12 +28,13 @@ export default () => {
     const readFiles = files => {
         for(let i = 0; i < files.length; i++) {
             if(files[i].name.indexOf("csv") >= 0) {
-                console.log("csv file: ", files[i].name)
                 Papa.parse(files[i], {
                     header: true,
                     complete: result => { 
-                        setPacketCSV(() => (
-                            result.data.map(packet => {
+                        console.log("length", result.data.length);
+                        setPacketCSV(() => {
+                            result.data.pop();
+                            const returnValue = result.data.map((packet, idx) => {
                                 return {
                                     no: packet["No."],
                                     time: packet["Time"],
@@ -45,12 +45,13 @@ export default () => {
                                     info: packet["Info"],
                                 }
                             })
-                        )); 
-                        console.log(result.data)
+                            console.log("csv", returnValue)
+                            return returnValue
+                        }
+                    ); 
                     }
                 });
             } else if (files[i].name.indexOf("json") >= 0) {
-                console.log("json file: ", files[i].name);
                 const reader = new FileReader();
                 reader.onload = (() => {
                     return e => {
@@ -59,11 +60,40 @@ export default () => {
                             setPacketJSON(() => {
                                 const result = {};
                                 json.forEach(packet => {
-                                    result[packet._source.layers.frame["frame.number"]] = packet._source.layers.frame["frame.time"];
+                                    result[packet._source.layers.frame["frame.number"]] = {"timestamp": ""};
+                                    result[packet._source.layers.frame["frame.number"]]["timestamp"] = packet._source.layers.frame["frame.time"];
+                                    console.log(result);
+
+                                    let value = "";
+                                    if ("zbee_zcl" in packet._source.layers) {
+                                        const type = result[packet._source.layers.frame["frame.number"]]["value"] = packet._source.layers.zbee_zcl;
+
+                                        if ("zbee_zcl_general.onoff.cmd.srv_rx.id" in type) {
+                                            // on인 경우
+                                            if (type["zbee_zcl_general.onoff.cmd.srv_rx.id"] === "0x00000001") { 
+                                                value = "on";
+                                            } 
+                                            // off인 경우
+                                            else if (type["zbee_zcl_general.onoff.cmd.srv_rx.id"] === "0x00000000") { 
+                                                value = "off";
+                                            }
+                                        } else if ("Payload" in type) {
+                                            const payload = type["Payload"];
+                                            // level인 경우
+                                            if ("zbee_zcl_general.level_control.level" in payload) {
+                                                value = payload["zbee_zcl_general.level_control.level"];
+                                            }
+                                            // color인 경우
+                                            else if ("zbee_zcl_lighting.color_control.color_temp" in payload) {
+                                                value = payload["zbee_zcl_lighting.color_control.color_temp"];
+                                            }
+                                        }
+
+                                        result[packet._source.layers.frame["frame.number"]]["value"] = value;
+                                    }
                                 });
                                 return result;
                             });
-
                         } catch (err) {
                             console.log(err);
                             alert("error parsing json");
@@ -90,7 +120,7 @@ export default () => {
                                     result['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
                                     results.push(result);
                                 });
-                                console.log(results);
+                                console.log(results)
                                 return results;           
                         });
                         
@@ -101,7 +131,6 @@ export default () => {
                     }
                 })(files[i]);
                 reader.readAsText(files[i]);
-                console.log(packetHTML);
 
             } else {
                 console.log("Wrong file");
@@ -134,10 +163,11 @@ export default () => {
                         <Table.ColHeader>Protocol</Table.ColHeader>
                         <Table.ColHeader>Length</Table.ColHeader>
                         <Table.ColHeader>Info</Table.ColHeader>
+                        <Table.ColHeader>Value</Table.ColHeader>
                         <Table.ColHeader>Timestamp</Table.ColHeader>
                     </Table.Header>
                     <Table.Body style={{"background": "white"}}>
-                        {data !== null && data.map(({no, time, source, destination, protocol, length, info, timestamp}, idx) => (
+                        {data !== null && data.map(({no, time, source, destination, protocol, length, info, value, timestamp}, idx) => (
                             <Table.Row key={no}>
                                 <Table.Col>{no}</Table.Col>
                                 <Table.Col>{time}</Table.Col>
@@ -146,6 +176,7 @@ export default () => {
                                 <Table.Col>{protocol}</Table.Col>
                                 <Table.Col>{length}</Table.Col>
                                 <Table.Col>{info}</Table.Col>
+                                <Table.Col>{value}</Table.Col>
                                 <Table.Col>{timestamp}</Table.Col>
                             </Table.Row>
                         ))}
