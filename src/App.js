@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import React, { useState, useEffect } from "react";
 import "tabler-react/dist/Tabler.css";
+import "./App.css";
 import { Table } from "tabler-react";
 import cheerio from "cheerio";
 
@@ -11,19 +12,65 @@ export default () => {
     const [packetHTML, setPacketHTML] = useState(null);
 
     useEffect(() => {
-        if (packetCSV !== null && packetJSON !== null) {
+        if (packetCSV !== null && packetJSON !== null && packetHTML !== null) {
             setData(() => {
-                const result = packetCSV.map(packet => {
+                let result = packetCSV.map(packet => {
                     return {
                         ...packet,
                         timestamp: packetJSON[packet.no]["timestamp"],
                         value: packetJSON[packet.no]["value"]
                     }
                 });
-                return result.filter(packet => packet.value !== "");
+                // default response와 같은 packet 제거
+                result = result.filter(packet => packet.value !== "");
+                // Color가 오면 on도 같이 오는데 이때 on은 의도한 커맨드가 아니므로 제거
+                // TODO: seq 번호로 판단하기
+                result = result.filter((packet, idx) => {
+                    if (packet.value === "on") {
+                        if (result.length > idx + 1) {
+                            if (result[idx + 1].info.includes("Color")) {
+                                return false;
+                            }
+                        }
+                    }
+                    return true;
+                });
+
+                // 성공 여부 판단
+                // TODO: 아직 에러 많은 필터링 필요
+                result = result.map(packet => {
+                    const matching = packetHTML.filter(html => {
+                        if ((html.date - packet.timestamp) >= 0 && (html.date - packet.timestamp) <= 2000 && String(html.feature) === String(packet.value)) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    });
+                    if (matching.length === 1) {
+                        return {
+                            ...packet,
+                            success: true,
+                            message: "Success"
+                        }
+                    } else if (matching.length === 0) {
+                        return {
+                            ...packet,
+                            success: false,
+                            message: "There's no command satisfies this packet!"
+                        }
+                    } else {
+                        return {
+                            ...packet,
+                            success: false,
+                            message: "There's more than one command that satisfies this packet!"
+                        }
+                    }
+                });
+                console.log(result)
+                return result;
             });
         }
-    }, [packetCSV, packetJSON]);
+    }, [packetCSV, packetJSON, packetHTML]);
 
     const readFiles = files => {
         for(let i = 0; i < files.length; i++) {
@@ -62,7 +109,10 @@ export default () => {
                                     splitedDate.pop();
 
                                     result[packet._source.layers.frame["frame.number"]] = {"timestamp": "", "value": ""};
-                                    result[packet._source.layers.frame["frame.number"]]["timestamp"] = new Date(splitedDate.join(" "));
+
+                                    const setMill = new Date(splitedDate.join(" "));
+                                    setMill.setMilliseconds(0)
+                                    result[packet._source.layers.frame["frame.number"]]["timestamp"] = setMill
 
                                     let value = "";
                                     if ("zbee_zcl" in packet._source.layers) {
@@ -81,7 +131,7 @@ export default () => {
                                             const payload = type["Payload"];
                                             // level인 경우
                                             if ("zbee_zcl_general.level_control.level" in payload) {
-                                                value = payload["zbee_zcl_general.level_control.level"];
+                                                value = Math.round(parseInt(payload["zbee_zcl_general.level_control.level"]) * 100 / 255);
                                             }
                                             // color인 경우
                                             else if ("zbee_zcl_lighting.color_control.color_temp" in payload) {
@@ -109,12 +159,12 @@ export default () => {
                             
                             setPacketHTML(() => {
                                 const results = [];
-                                const bodyList = $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
+                                $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
                                     const result = {};
                                     const splitedDate = String($(element).find('td:nth-of-type(1)').text().trim()).split(" ");
                                     const day = splitedDate[0].split(" ")[0];
                                     const time = splitedDate[1].split(":");
-                                    result['date'] = new Date(day.split("-")[0], parseInt(day.split("-")[1]) - 1, day.split("-")[2], splitedDate[2] === "오후" ? parseInt(time[0]) + 12 : time[0], time[1], time[2]);
+                                    result['date'] = new Date(day.split("-")[0], parseInt(day.split("-")[1]) - 1, day.split("-")[2], splitedDate[2] === "오후" ? parseInt(time[0]) + 12 : time[0], time[1], time[2], 0);
                                     result['name'] = String($(element).find('td:nth-of-type(4)').text().trim());
                                     result['feature'] = String($(element).find('td:nth-of-type(5)').text().trim());
                                     results.push(result);
@@ -144,6 +194,10 @@ export default () => {
         const files = event.target.files;
         readFiles(files);
     }
+
+    const onClickTable = event => {
+
+    }
     
     return (
         <div>
@@ -166,9 +220,9 @@ export default () => {
                         <Table.ColHeader>Value</Table.ColHeader>
                         <Table.ColHeader>Timestamp</Table.ColHeader>
                     </Table.Header>
-                    <Table.Body style={{"background": "white"}}>
-                        {data !== null && data.map(({no, time, source, destination, protocol, length, info, value, timestamp}, idx) => (
-                            <Table.Row key={no}>
+                    <Table.Body style={{"background": "white", "cursor": "pointer"}} onClick={onClickTable}>
+                        {data !== null && data.map(({no, time, source, destination, protocol, length, info, value, timestamp, success}, idx) => (
+                            <Table.Row key={no} style={success ? {background: "white"} : {background: "#FFD2D2"}}>
                                 <Table.Col>{no}</Table.Col>
                                 <Table.Col>{time}</Table.Col>
                                 <Table.Col>{source}</Table.Col>
