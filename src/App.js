@@ -3,41 +3,58 @@ import React, { useState, useEffect } from "react";
 import "tabler-react/dist/Tabler.css";
 import "./App.css";
 import { Table } from "tabler-react";
+import Chart from "react-google-charts";
 import cheerio from "cheerio";
 
 export default () => {
     const [data, setData] = useState(null);
+    const [allPacket, setAllPacket] = useState(null);
     const [packetCSV, setPacketCSV] = useState(null);
     const [packetJSON, setPacketJSON] = useState(null);
     const [packetHTML, setPacketHTML] = useState(null);
+    const [popupData, setPopupData] = useState(null);
+    const [graphData, setGraphData] = useState(null);
 
     useEffect(() => {
         if (packetCSV !== null && packetJSON !== null && packetHTML !== null) {
+            console.log("csv", packetCSV)
+            console.log("html", packetHTML)
             setData(() => {
+                
                 let result = packetCSV.map(packet => {
                     return {
                         ...packet,
                         timestamp: packetJSON[packet.no]["timestamp"],
-                        value: packetJSON[packet.no]["value"]
+                        value: packetJSON[packet.no]["value"],
                     }
                 });
+                
+                // allPacket에 데이터 넣기
+                setAllPacket(() => result.filter(packet => packet.info.includes("Default") === false));
+
+                // 같은 seq의 패킷이 오면 하나만 남겨두고 나머지 제거
+                for (let i = 0;i < result.length; i++) {
+                    for (let j = i + 1;j < result.length; j++) {
+                        // seq number가 같은 패킷이 있다면 제거
+                        if (result[j].seq === result[i].seq) {
+                            result.splice(j, 1);
+                        }
+                    }
+                }
+
                 // default response와 같은 packet 제거
                 result = result.filter(packet => packet.value !== "");
+
                 // Color가 오면 on도 같이 오는데 이때 on은 의도한 커맨드가 아니므로 제거
-                // TODO: seq 번호로 판단하기
                 result = result.filter((packet, idx) => {
                     if (packet.value === "on") {
-                        if (result.length > idx + 1) {
-                            if (result[idx + 1].info.includes("Color")) {
-                                return false;
-                            }
-                        }
+                        const color = result.filter(colorTemp => colorTemp.info.split(" ")[1] === "Color" && parseInt(colorTemp.info.split(" ")[8]) === packet.seq + 1);
+                        if (color.length !== 0) return false;
                     }
                     return true;
                 });
 
                 // 성공 여부 판단
-                // TODO: 아직 에러 많은 필터링 필요
                 result = result.map(packet => {
                     const matching = packetHTML.filter(html => {
                         if ((html.date - packet.timestamp) >= 0 && (html.date - packet.timestamp) <= 2000 && String(html.feature) === String(packet.value)) {
@@ -56,17 +73,36 @@ export default () => {
                         return {
                             ...packet,
                             success: false,
-                            message: "There's no command satisfies this packet!"
+                            message: "No Command"
                         }
                     } else {
                         return {
                             ...packet,
                             success: false,
-                            message: "There's more than one command that satisfies this packet!"
+                            message: "More than One"
                         }
                     }
                 });
-                console.log(result)
+                console.log("result", result)
+
+                // graphData에 데이터 넣기
+                setGraphData(() => {
+                    return {
+                        command: [
+                            ["Command", "Number"],
+                            ["On", result.filter(command => command.value === "on").length],
+                            ["Off", result.filter(command => command.value === "off").length],
+                            ["Color temperature", result.filter(command => command.info.split(" ")[1] === "Color").length],
+                            ["Level control", result.filter(command => command.info.split(" ")[1] === "Level").length]
+                        ],
+                        isSuccess: [
+                            ["Success", "Number"],
+                            ["Success", result.filter(command => command.success === true).length],
+                            ["Error", result.filter(command => command.success === false).length]
+                        ]
+                    }
+                });
+
                 return result;
             });
         }
@@ -81,6 +117,9 @@ export default () => {
                         result.data.pop();
                         setPacketCSV(() => (
                             result.data.map(packet => {
+                                const tmp = packet["Info"].split(" ");
+                                const seq = parseInt(tmp[tmp.length - 1]);
+
                                 return {
                                     no: packet["No."],
                                     time: packet["Time"],
@@ -89,6 +128,7 @@ export default () => {
                                     protocol: packet["Protocol"],
                                     length: packet["Length"],
                                     info: packet["Info"],
+                                    seq: seq
                                 }
                             })
                         ));
@@ -170,7 +210,6 @@ export default () => {
                                     results.push(result);
                                 });
                                 results.reverse();
-                                console.log(results);
                                 return results;           
                         });
                         
@@ -195,8 +234,45 @@ export default () => {
         readFiles(files);
     }
 
-    const onClickTable = event => {
-
+    const onClickTable = (packet) => {
+        if (packet.success) {
+            setPopupData(curr => {
+                return {
+                    success: true,
+                    data: packet
+                };
+            });
+        } else if (packet.success === false) {
+            if (packet.value === "on" || packet.value === "off") {
+                setPopupData(curr => {
+                    return {
+                        success: false,
+                        data: "onoff"
+                    };
+                });
+            } else if (packet.info.split(" ")[1] === "Color") {
+                setPopupData(curr => {
+                    return {
+                        success: false,
+                        data: "color"
+                    };
+                });
+            } else if (packet.info.split(" ")[1] === "Level") {
+                setPopupData(curr => {
+                    return {
+                        success: false,
+                        data: "Level"
+                    };
+                });
+            } else {
+                setPopupData(curr => {
+                    return {
+                        success: false,
+                        data: "error"
+                    };
+                });
+            }
+        }
     }
     
     return (
@@ -207,7 +283,7 @@ export default () => {
                     <input className="form-control" type="file" id="formFile" multiple onChange={handleInputChange} />
                 </div>
             </div>
-            <div style={{overflow: "auto", maxHeight: "500px", borderBottom: "1px solid #dee2e6"}}>
+            <div style={{overflow: "auto", maxHeight: "400px", borderBottom: "1px solid #dee2e6"}}>
                 <Table>
                     <Table.Header>
                         <Table.ColHeader>No.</Table.ColHeader>
@@ -220,28 +296,73 @@ export default () => {
                         <Table.ColHeader>Value</Table.ColHeader>
                         <Table.ColHeader>Timestamp</Table.ColHeader>
                     </Table.Header>
-                    <Table.Body style={{"background": "white", "cursor": "pointer"}} onClick={onClickTable}>
-                        {data !== null && data.map(({no, time, source, destination, protocol, length, info, value, timestamp, success}, idx) => (
-                            <Table.Row key={no} style={success ? {background: "white"} : {background: "#FFD2D2"}}>
-                                <Table.Col>{no}</Table.Col>
-                                <Table.Col>{time}</Table.Col>
-                                <Table.Col>{source}</Table.Col>
-                                <Table.Col>{destination}</Table.Col>
-                                <Table.Col>{protocol}</Table.Col>
-                                <Table.Col>{length}</Table.Col>
-                                <Table.Col>{info}</Table.Col>
-                                <Table.Col>{value}</Table.Col>
-                                <Table.Col>{timestamp.toString()}</Table.Col>
-                            </Table.Row>
-                        ))}
+                    {data !== null && data.map((packet, idx) => (
+                    <Table.Body key={packet.no} style={{"background": "white", "cursor": "pointer"}} onClick={() => onClickTable(packet)}>
+                        <Table.Row style={packet.success ? {background: "white"} : {background: "#FFD2D2"}}>
+                            <Table.Col>{packet.no}</Table.Col>
+                            <Table.Col>{packet.time}</Table.Col>
+                            <Table.Col>{packet.source}</Table.Col>
+                            <Table.Col>{packet.destination}</Table.Col>
+                            <Table.Col>{packet.protocol}</Table.Col>
+                            <Table.Col>{packet.length}</Table.Col>
+                            <Table.Col>{packet.info}</Table.Col>
+                            <Table.Col>{packet.value}</Table.Col>
+                            <Table.Col>{packet.timestamp.toString()}</Table.Col>
+                        </Table.Row>
                     </Table.Body>
+                    ))}
                 </Table>
             </div>
-            <div>
-                <div>여기 3줄 div 지우고 작성하면댐</div>
-                <div>참고로 난 <a href="https://tabler-react.com/documentation/">Tabler-React Documentation</a> 이거씀!!</div>
-                <div><a href="https://tabler-react.com/">예시</a> 이거는 tabler-react 예시 보여주는거!</div>
-            </div>
+            {graphData !== null && (
+                <div style={{display: "flex", justifyContent: "center", alignItems: "center", padding: "10px 5px"}}>
+                    <div>
+                        <Chart
+                            width={'450px'}
+                            height={'300px'}
+                            chartType="PieChart"
+                            loader={<div>Loading Chart</div>}
+                            data={graphData.command}
+                            options={{
+                                title: 'Commands',
+                                backgroundColor: "#f5f7fb",
+                                colors: ["#D8E3E7", "#51C4D3", "#126E82", "#132C33"]
+                            }}
+                            rootProps={{ 'data-testid': '1' }}
+                        />
+                    </div>
+                    <div>
+                        <Chart
+                            width={'450px'}
+                            height={'300px'}
+                            chartType="PieChart"
+                            loader={<div>Loading Chart</div>}
+                            data={graphData.isSuccess}
+                            options={{
+                                title: 'Error Ratio',
+                                backgroundColor: "#f5f7fb",
+                                colors: ["#D8E3E7", "#51C4D3", "#126E82", "#132C33"]
+                            }}
+                            rootProps={{ 'data-testid': '1' }}
+                        />
+                    </div>
+                    <div>
+                        {popupData === null && (
+                            <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px"}}>Select the data</div>
+                        )}
+                        {popupData !== null && (
+                            <>
+                            {popupData.success === true && (
+                                <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px"}}>{popupData.data.info}</div>
+                            )}
+                            {popupData.success === false && (
+                                <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px"}}>{popupData.data}</div>
+                            )}
+                            </>
+                        )}
+                    </div>
+                    
+                </div>
+            )}
         </div>
         
     )
