@@ -2,9 +2,12 @@ import Papa from "papaparse";
 import React, { useState, useEffect } from "react";
 import "tabler-react/dist/Tabler.css";
 import "./App.css";
-import { Table } from "tabler-react";
+import { Table, Tag } from "tabler-react";
 import Chart from "react-google-charts";
 import cheerio from "cheerio";
+import Success from "./img/success.png";
+import FailCloud from "./img/fail_cloud.png";
+import FailResponse from "./img/fail_response.png";
 
 export default () => {
     const [data, setData] = useState(null);
@@ -19,18 +22,30 @@ export default () => {
         if (packetCSV !== null && packetJSON !== null && packetHTML !== null) {
             console.log("csv", packetCSV)
             console.log("html", packetHTML)
+            
+            setAllPacket(() => {
+                const save = packetCSV.map(packet => {
+                    return {
+                        ...packet,
+                        timestamp: packetJSON[packet.no]["timestamp"],
+                        value: packetJSON[packet.no]["value"],
+                        changed: packetJSON[packet.no]["changed"]
+                    }
+                });
+                return save;
+            });
+
             setData(() => {
-                
                 let result = packetCSV.map(packet => {
                     return {
                         ...packet,
                         timestamp: packetJSON[packet.no]["timestamp"],
                         value: packetJSON[packet.no]["value"],
+                        changed: packetJSON[packet.no]["changed"]
                     }
                 });
                 
-                // allPacket에 데이터 넣기
-                setAllPacket(() => result.filter(packet => packet.info.includes("Default") === false));
+                console.log("check", result)
 
                 // 같은 seq의 패킷이 오면 하나만 남겨두고 나머지 제거
                 for (let i = 0;i < result.length; i++) {
@@ -42,8 +57,10 @@ export default () => {
                     }
                 }
 
+                console.log("seocndcheck", result)
+
                 // default response와 같은 packet 제거
-                result = result.filter(packet => packet.value !== "");
+                result = result.filter(packet => packet.info.includes("OnOff") || packet.info.includes("Level") || packet.info.includes("Color"));
 
                 // Color가 오면 on도 같이 오는데 이때 on은 의도한 커맨드가 아니므로 제거
                 result = result.filter((packet, idx) => {
@@ -119,6 +136,7 @@ export default () => {
                             result.data.map(packet => {
                                 const tmp = packet["Info"].split(" ");
                                 const seq = parseInt(tmp[tmp.length - 1]);
+                                const command = packet["Info"].includes("Color") ? "color" : packet["Info"].includes("Level") ? "level" : packet["Info"].includes("OnOff: Off") ? "off" : packet["Info"].includes("OnOff: On") ? "on" : "";
 
                                 return {
                                     no: packet["No."],
@@ -128,7 +146,8 @@ export default () => {
                                     protocol: packet["Protocol"],
                                     length: packet["Length"],
                                     info: packet["Info"],
-                                    seq: seq
+                                    seq: seq,
+                                    command: command
                                 }
                             })
                         ));
@@ -148,13 +167,14 @@ export default () => {
                                     splitedDate.pop();
                                     splitedDate.pop();
 
-                                    result[packet._source.layers.frame["frame.number"]] = {"timestamp": "", "value": ""};
+                                    result[packet._source.layers.frame["frame.number"]] = {"timestamp": "", "value": "", "changed": ""};
 
                                     const setMill = new Date(splitedDate.join(" "));
                                     setMill.setMilliseconds(0)
                                     result[packet._source.layers.frame["frame.number"]]["timestamp"] = setMill
 
                                     let value = "";
+                                    let changed = "";
                                     if ("zbee_zcl" in packet._source.layers) {
                                         const type = result[packet._source.layers.frame["frame.number"]]["value"] = packet._source.layers.zbee_zcl;
 
@@ -177,10 +197,26 @@ export default () => {
                                             else if ("zbee_zcl_lighting.color_control.color_temp" in payload) {
                                                 value = Math.round(parseInt(1000000 / parseInt(payload["zbee_zcl_lighting.color_control.color_temp"])) / 100) * 100
                                             }
+                                        } else if ("Attribute Field" in type) {
+                                            // report attribute인 경우
+                                            // onoff인 경우
+                                            if ("zbee_zcl_general.onoff.attr.onoff" in type["Attribute Field"]) {
+                                                changed = type["Attribute Field"]["zbee_zcl_general.onoff.attr.onoff"] === "0x00000000" ? "off" : "on";
+                                            } else if ("zbee_zcl_general.level_control.attr.current_level" in type["Attribute Field"]) {
+                                                // level인 경우
+                                                changed = Math.round(parseInt(type["Attribute Field"]["zbee_zcl_general.level_control.attr.current_level"]) * 100 / 255);
+                                            }
+                                        } else if ("Status Record" in type) {
+                                            // Read Attributes Response인 경우
+                                            if ("zbee_zcl_lighting.color_control.attr.color_temperature" in type["Status Record"]) {
+                                                changed = Math.round(parseInt(1000000 / parseInt(type["Status Record"]["zbee_zcl_lighting.color_control.attr.color_temperature"])) / 100) * 100
+                                            }
                                         }
                                     }
                                     result[packet._source.layers.frame["frame.number"]]["value"] = value;
+                                    result[packet._source.layers.frame["frame.number"]]["changed"] = changed;
                                 });
+                                console.log("json", result);
                                 return result;
                             });
                         } catch (err) {
@@ -196,7 +232,6 @@ export default () => {
                     return e => {
                         try {
                             const $ = cheerio.load(e.target.result);
-                            
                             setPacketHTML(() => {
                                 const results = [];
                                 $(".table.table-bordered.table-condensed.tbl-sm tbody tr").map(function (i, element) {
@@ -235,7 +270,7 @@ export default () => {
     }
 
     const onClickTable = (packet) => {
-        if (packet.success) {
+        if (packet.success === true) {
             setPopupData(curr => {
                 return {
                     success: true,
@@ -243,31 +278,80 @@ export default () => {
                 };
             });
         } else if (packet.success === false) {
-            if (packet.value === "on" || packet.value === "off") {
-                setPopupData(curr => {
-                    return {
-                        success: false,
-                        data: "onoff"
-                    };
-                });
+            if (packet.value === "on" || packet.value === "off" || packet.info.split(" ")[1] === "Level") {
+                // 시간 2초이내로 필터링
+                const filtered = allPacket.filter(element => (element.timestamp - packet.timestamp) >= 0 && (element.timestamp - packet.timestamp) <= 2000 && element.info.includes("Report Attributes") === true);
+                // 변경된 값이 맞는지 필터링
+                const matching = filtered.filter(element => element.changed === packet.value);
+
+                if (filtered.length < 1) { // report attribute가 없는 경우
+                    setPopupData(curr => {
+                        return {
+                            success: false,
+                            data: "No Report Attribute",
+                            code: 0,
+                            packet: packet
+                        }
+                    });
+                } else if (matching.length < 1) { // report attribute의 변경된 값이 일치하지 않는 경우
+                    setPopupData(curr => {
+                        return {
+                            success: false,
+                            data: "Wrong Report Attribute value",
+                            code: 1,
+                            packet: packet,
+                            report: filtered
+                        }
+                    });
+                } else { // report attribute가 정상적인데, 클라우드에 기록이 안된 경우
+                    setPopupData(curr => {
+                        return {
+                            success: false,
+                            data: "Fail to write in cloud",
+                            code: 2,
+                            packet: packet
+                        }
+                    });
+                }
             } else if (packet.info.split(" ")[1] === "Color") {
-                setPopupData(curr => {
-                    return {
-                        success: false,
-                        data: "color"
-                    };
-                });
-            } else if (packet.info.split(" ")[1] === "Level") {
-                setPopupData(curr => {
-                    return {
-                        success: false,
-                        data: "Level"
-                    };
-                });
+                // 시간 2초이내로 필터링
+                const filtered = allPacket.filter(element => (element.timestamp - packet.timestamp) >= 0 && (element.timestamp - packet.timestamp) <= 2000 && element.info.includes("Read Attributes Response") === true);
+                // 변경된 값이 맞는지 필터링
+                const matching = filtered.filter(element => element.changed === packet.value);
+                if (filtered.length < 1) { // read attribute response가 없는 경우
+                    setPopupData(curr => {
+                        return {
+                            success: false,
+                            data: "No Read Attribute Response",
+                            code: 0,
+                            packet: packet
+                        }
+                    });
+                } else if (matching.length < 1) { // read attribute response의 변경된 값이 일치하지 않는 경우
+                    setPopupData(curr => {
+                        return {
+                            success: false,
+                            data: "Wrong Read Attribute Response",
+                            code: 1,
+                            packet: packet,
+                            report: filtered
+                        }
+                    });
+                } else { // read attribute response가 정상적인데, 클라우드에 기록이 안된 경우
+                    setPopupData(curr => {
+                        return {
+                            success: false,
+                            data: "Fail to write in cloud",
+                            code: 2,
+                            packet: packet
+                        }
+                    });
+                }
             } else {
                 setPopupData(curr => {
                     return {
                         success: false,
+                        code: 3,
                         data: "error"
                     };
                 });
@@ -347,15 +431,73 @@ export default () => {
                     </div>
                     <div>
                         {popupData === null && (
-                            <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px"}}>Select the data</div>
+                            <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", paddingTop: "10px"}}>Select the packet</div>
                         )}
                         {popupData !== null && (
                             <>
                             {popupData.success === true && (
-                                <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px"}}>{popupData.data.info}</div>
+                                <div style={{width: "500px", height: "300px", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px 15px"}}>
+                                    <div>
+                                        <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
+                                        <div style={{display: "inline-block", float: "right"}}>
+                                            <Tag color="azure">Success</Tag>
+                                        </div> 
+                                    </div>
+                                    <div style={{padding: "30px 40px 0px 40px"}}>
+                                        <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.data.command}</div>
+                                        <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.data.command}</div>
+                                    </div>
+                                    <img src={Success} alt="Success" style={{padding: "5px 20px"}}/>  
+                                </div>
                             )}
                             {popupData.success === false && (
-                                <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px"}}>{popupData.data}</div>
+                                <div style={{width: "500px", height: "300px", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px 15px"}}>
+                                    {(popupData.code === 1 || popupData.code === 0) && ( // response가 없거나 값이 이상한 경우
+                                        <div>
+                                            <div>
+                                                <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
+                                                <div style={{display: "inline-block", float: "right"}}>
+                                                    <Tag color="red">Error</Tag>
+                                                </div> 
+                                            </div>
+                                            <div style={{padding: "20px 50px 0px 90px"}}>
+                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.packet.command}</div>
+                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em", color: "red"}}>Error</div>
+                                            </div>
+                                            <img src={FailResponse} alt="Error" style={{padding: "5px 20px"}}/> 
+                                            <div style={{paddingTop: "20px", textAlign: "center", fontWeight: "700", color: "red"}}>{popupData.data}</div>
+                                        </div>
+                                    )}
+                                    {popupData.code === 2 && ( // 클라우드 기록에 실패한 경우
+                                        <div>
+                                            <div>
+                                                <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
+                                                <div style={{display: "inline-block", float: "right"}}>
+                                                    <Tag color="red">Error</Tag>
+                                                </div> 
+                                            </div>
+                                            <div style={{padding: "20px 50px 0px 90px"}}>
+                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em", color: "red"}}>Error</div>
+                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.packet.command}</div>
+                                            </div>
+                                            <img src={FailCloud} alt="Error" style={{padding: "5px 20px"}}/> 
+                                            <div style={{paddingTop: "20px", textAlign: "center", fontWeight: "700", color: "red"}}>{popupData.data}</div>
+                                        </div>
+                                    )}
+                                    {popupData.code === 3 && ( // 그냥 이상한 경우
+                                        <div>
+                                            <div>
+                                                <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
+                                                <div style={{display: "inline-block", float: "right"}}>
+                                                    <Tag color="red">Error</Tag>
+                                                </div> 
+                                            </div>
+                                            <div>
+                                                error
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                             </>
                         )}
