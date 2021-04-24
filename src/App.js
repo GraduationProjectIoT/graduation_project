@@ -1,25 +1,20 @@
 import Papa from "papaparse";
 import React, { useState, useEffect } from "react";
-import "tabler-react/dist/Tabler.css";
-import "./App.css";
-import { Table, Tag } from "tabler-react";
-import Chart from "react-google-charts";
 import cheerio from "cheerio";
-import Success from "./img/success.png";
-import FailCloud from "./img/fail_cloud.png";
-import FailResponse from "./img/fail_response.png";
+import AppPresenter from "./AppPresenter";
 
 export default () => {
-    const [data, setData] = useState(null);
+    const [resultData, setResultData] = useState(null);
     const [allPacket, setAllPacket] = useState(null);
     const [packetCSV, setPacketCSV] = useState(null);
     const [packetJSON, setPacketJSON] = useState(null);
     const [packetHTML, setPacketHTML] = useState(null);
     const [popupData, setPopupData] = useState(null);
     const [graphData, setGraphData] = useState(null);
+    const [type, setType] = useState("zigbee");
 
     useEffect(() => {
-        if (packetCSV !== null && packetJSON !== null && packetHTML !== null) {
+        if (packetCSV !== null && packetJSON !== null && packetHTML !== null && type === "zigbee") {
             console.log("csv", packetCSV)
             console.log("html", packetHTML)
             
@@ -35,7 +30,7 @@ export default () => {
                 return save;
             });
 
-            setData(() => {
+            setResultData(() => {
                 let result = packetCSV.map(packet => {
                     return {
                         ...packet,
@@ -44,8 +39,6 @@ export default () => {
                         changed: packetJSON[packet.no]["changed"]
                     }
                 });
-                
-                console.log("check", result)
 
                 // 같은 seq의 패킷이 오면 하나만 남겨두고 나머지 제거
                 for (let i = 0;i < result.length; i++) {
@@ -56,8 +49,6 @@ export default () => {
                         }
                     }
                 }
-
-                console.log("seocndcheck", result)
 
                 // default response와 같은 packet 제거
                 result = result.filter(packet => packet.info.includes("OnOff") || packet.info.includes("Level") || packet.info.includes("Color"));
@@ -125,7 +116,11 @@ export default () => {
         }
     }, [packetCSV, packetJSON, packetHTML]);
 
-    const readFiles = files => {
+    const readFilesZigbee = files => {
+        if (files.length !== 3) {
+            alert("3개 파일을 모두 넣어주세요.");
+            return;
+        }
         for(let i = 0; i < files.length; i++) {
             if(files[i].name.indexOf("csv") >= 0) {
                 Papa.parse(files[i], {
@@ -261,251 +256,210 @@ export default () => {
                 alert("You put the wrong files");
             }
         }
-    }
+    };
+
+    const readFilesBLE = files => {
+        if (files.length !== 1) {
+            alert("1개 파일만 넣어주세요.");
+        }
+        for(let i = 0; i < files.length; i++) {
+            if(files[i].name.indexOf("json") >= 0) {
+                const reader = new FileReader();
+                reader.onload = (() => {
+                    return e => {
+                        try {
+                            // TODO: 파싱해서 필요한 데이터 뽑기
+                            const json = JSON.parse(e.target.result);
+                            setResultData(() => {
+                                let result = [];
+                                json.forEach(packet => {
+                                    const timestamp = packet._source.layers.frame["frame.time"];
+                                    let splitedDate = timestamp.split(" ");
+                                    splitedDate.pop();
+                                    splitedDate.pop()
+                                    result.push({"no": parseInt(packet._source.layers.frame["frame.number"]), "timestamp": "", "value": "", "info": "", "request": "", "success": false})
+                                    const setMill = new Date(splitedDate.join(" "));
+                                    setMill.setMilliseconds(0)
+                                    result[result.length - 1]["timestamp"] = setMill
+
+                                    if ("btatt" in packet._source.layers) {
+                                        // 시작점
+                                        if ("btatt.handle" in packet._source.layers.btatt) {
+                                            result[result.length - 1]["value"] = packet._source.layers.btatt["btatt.handle"];
+                                            result[result.length - 1]["info"] = "Request";
+                                            // 끝점
+                                            if ("btatt.request_in_frame" in packet._source.layers.btatt) {
+                                                result[result.length - 1]["request"] = parseInt(packet._source.layers.btatt["btatt.request_in_frame"]);
+                                                result[result.length - 1]["info"] = "Response";
+                                            }
+                                        }
+                                    } else if ("btle" in packet._source.layers) {
+                                        // empty PDU
+                                        result[result.length - 1]["info"] = "Empty PDU";
+                                    }
+                                });
+                                setAllPacket(result);
+                                console.log("json", result);
+
+                                // packet 성공 여부 판단
+                                result.map(packet => {
+                                    if (packet.info === "Request") {
+                                        const first = result.filter(element => element.no === packet.no + 1)[0];
+                                        const second = result.filter(element => element.no === packet.no + 2)[0];
+                                        const response = result.filter(element => element.no === packet.no + 3)[0];
+                                        if (first.info === "Empty PDU" && second.info === "Empty PDU" && response.info === "Response") {
+                                            packet.success = true;
+                                            return packet;
+                                        } else {
+                                            return packet;
+                                        }
+                                    } else {
+                                        return packet;
+                                    }
+                                })
+
+                                // response만 거르기
+                                result = result.filter(packet => packet.info === "Request");
+
+                                setGraphData(() => {
+                                    return {
+                                        isSuccess: [
+                                            ["Success", "Number"],
+                                            ["Success", result.filter(command => command.success === true).length],
+                                            ["Error", result.filter(command => command.success === false).length]
+                                        ]
+                                    }
+                                });
+                                
+                                return result;
+                            });
+
+                            
+                        } catch (err) {
+                            console.log(err);
+                            alert("error parsing json");
+                        }                
+                    }
+                })(files[i]);
+                reader.readAsText(files[i]);
+            }
+        }
+    };
 
     const handleInputChange = event => {
         if (event.target.files.length <= 0) return;
         const files = event.target.files;
-        readFiles(files);
+        if (type === "zigbee") {
+            readFilesZigbee(files);
+        } else {
+            readFilesBLE(files);
+        }
     }
 
     const onClickTable = (packet) => {
-        if (packet.success === true) {
-            setPopupData(curr => {
-                return {
-                    success: true,
-                    data: packet
-                };
-            });
-        } else if (packet.success === false) {
-            if (packet.value === "on" || packet.value === "off" || packet.info.split(" ")[1] === "Level") {
-                // 시간 2초이내로 필터링
-                const filtered = allPacket.filter(element => (element.timestamp - packet.timestamp) >= 0 && (element.timestamp - packet.timestamp) <= 2000 && element.info.includes("Report Attributes") === true);
-                // 변경된 값이 맞는지 필터링
-                const matching = filtered.filter(element => element.changed === packet.value);
-
-                if (filtered.length < 1) { // report attribute가 없는 경우
-                    setPopupData(curr => {
-                        return {
-                            success: false,
-                            data: "No Report Attribute",
-                            code: 0,
-                            packet: packet
-                        }
-                    });
-                } else if (matching.length < 1) { // report attribute의 변경된 값이 일치하지 않는 경우
-                    setPopupData(curr => {
-                        return {
-                            success: false,
-                            data: "Wrong Report Attribute value",
-                            code: 1,
-                            packet: packet,
-                            report: filtered
-                        }
-                    });
-                } else { // report attribute가 정상적인데, 클라우드에 기록이 안된 경우
-                    setPopupData(curr => {
-                        return {
-                            success: false,
-                            data: "Fail to write in cloud",
-                            code: 2,
-                            packet: packet
-                        }
-                    });
-                }
-            } else if (packet.info.split(" ")[1] === "Color") {
-                // 시간 2초이내로 필터링
-                const filtered = allPacket.filter(element => (element.timestamp - packet.timestamp) >= 0 && (element.timestamp - packet.timestamp) <= 2000 && element.info.includes("Read Attributes Response") === true);
-                // 변경된 값이 맞는지 필터링
-                const matching = filtered.filter(element => element.changed === packet.value);
-                if (filtered.length < 1) { // read attribute response가 없는 경우
-                    setPopupData(curr => {
-                        return {
-                            success: false,
-                            data: "No Read Attribute Response",
-                            code: 0,
-                            packet: packet
-                        }
-                    });
-                } else if (matching.length < 1) { // read attribute response의 변경된 값이 일치하지 않는 경우
-                    setPopupData(curr => {
-                        return {
-                            success: false,
-                            data: "Wrong Read Attribute Response",
-                            code: 1,
-                            packet: packet,
-                            report: filtered
-                        }
-                    });
-                } else { // read attribute response가 정상적인데, 클라우드에 기록이 안된 경우
-                    setPopupData(curr => {
-                        return {
-                            success: false,
-                            data: "Fail to write in cloud",
-                            code: 2,
-                            packet: packet
-                        }
-                    });
-                }
-            } else {
+        if (type === "zigbee") {
+            if (packet.success === true) {
                 setPopupData(curr => {
                     return {
-                        success: false,
-                        code: 3,
-                        data: "error"
+                        success: true,
+                        data: packet
                     };
                 });
+            } else if (packet.success === false) {
+                if (packet.value === "on" || packet.value === "off" || packet.info.split(" ")[1] === "Level") {
+                    // 시간 2초이내로 필터링
+                    const filtered = allPacket.filter(element => (element.timestamp - packet.timestamp) >= 0 && (element.timestamp - packet.timestamp) <= 2000 && element.info.includes("Report Attributes") === true);
+                    // 변경된 값이 맞는지 필터링
+                    const matching = filtered.filter(element => element.changed === packet.value);
+
+                    if (filtered.length < 1) { // report attribute가 없는 경우
+                        setPopupData(curr => {
+                            return {
+                                success: false,
+                                data: "No Report Attribute",
+                                code: 0,
+                                packet: packet
+                            }
+                        });
+                    } else if (matching.length < 1) { // report attribute의 변경된 값이 일치하지 않는 경우
+                        setPopupData(curr => {
+                            return {
+                                success: false,
+                                data: "Wrong Report Attribute value",
+                                code: 1,
+                                packet: packet,
+                                report: filtered
+                            }
+                        });
+                    } else { // report attribute가 정상적인데, 클라우드에 기록이 안된 경우
+                        setPopupData(curr => {
+                            return {
+                                success: false,
+                                data: "Fail to write in cloud",
+                                code: 2,
+                                packet: packet
+                            }
+                        });
+                    }
+                } else if (packet.info.split(" ")[1] === "Color") {
+                    // 시간 2초이내로 필터링
+                    const filtered = allPacket.filter(element => (element.timestamp - packet.timestamp) >= 0 && (element.timestamp - packet.timestamp) <= 2000 && element.info.includes("Read Attributes Response") === true);
+                    // 변경된 값이 맞는지 필터링
+                    const matching = filtered.filter(element => element.changed === packet.value);
+                    if (filtered.length < 1) { // read attribute response가 없는 경우
+                        setPopupData(curr => {
+                            return {
+                                success: false,
+                                data: "No Read Attribute Response",
+                                code: 0,
+                                packet: packet
+                            }
+                        });
+                    } else if (matching.length < 1) { // read attribute response의 변경된 값이 일치하지 않는 경우
+                        setPopupData(curr => {
+                            return {
+                                success: false,
+                                data: "Wrong Read Attribute Response",
+                                code: 1,
+                                packet: packet,
+                                report: filtered
+                            }
+                        });
+                    } else { // read attribute response가 정상적인데, 클라우드에 기록이 안된 경우
+                        setPopupData(curr => {
+                            return {
+                                success: false,
+                                data: "Fail to write in cloud",
+                                code: 2,
+                                packet: packet
+                            }
+                        });
+                    }
+                } else {
+                    setPopupData(curr => {
+                        return {
+                            success: false,
+                            code: 3,
+                            data: "error"
+                        };
+                    });
+                }
             }
+        } else if (type === "ble") {
+            // TODO: popupdata도 세팅
         }
     }
+
+    const onClickRadio = (id) => {
+        setType(id);
+        setResultData(null);
+        setPopupData(null);
+        setPacketCSV(null);
+        setPacketHTML(null);
+        setPacketJSON(null);
+        setAllPacket(null);
+        setGraphData(null);
+    }
     
-    return (
-        <div>
-            <div style={{height: "50px", width: "100%", display: "flex", borderBottom: "1px solid #dee2e6", background: "white", alignItems: "center"}}>
-                <div style={{fontSize: "1.2em", fontWeight: "1000", paddingLeft: "10px", color: "#222222"}}>Packet Analyzer</div>
-                <div className="mb-3" style={{position: "absolute", right: "10px", paddingTop: "10px", paddingRight: "30px"}}>
-                    <input className="form-control" type="file" id="formFile" multiple onChange={handleInputChange} />
-                </div>
-            </div>
-            <div style={{overflow: "auto", maxHeight: "400px", borderBottom: "1px solid #dee2e6"}}>
-                <Table>
-                    <Table.Header>
-                        <Table.ColHeader>No.</Table.ColHeader>
-                        <Table.ColHeader>Time</Table.ColHeader>
-                        <Table.ColHeader>Source</Table.ColHeader>
-                        <Table.ColHeader>Destination</Table.ColHeader>
-                        <Table.ColHeader>Protocol</Table.ColHeader>
-                        <Table.ColHeader>Length</Table.ColHeader>
-                        <Table.ColHeader>Info</Table.ColHeader>
-                        <Table.ColHeader>Value</Table.ColHeader>
-                        <Table.ColHeader>Timestamp</Table.ColHeader>
-                    </Table.Header>
-                    {data !== null && data.map((packet, idx) => (
-                    <Table.Body key={packet.no} style={{"background": "white", "cursor": "pointer"}} onClick={() => onClickTable(packet)}>
-                        <Table.Row style={packet.success ? {background: "white"} : {background: "#FFD2D2"}}>
-                            <Table.Col>{packet.no}</Table.Col>
-                            <Table.Col>{packet.time}</Table.Col>
-                            <Table.Col>{packet.source}</Table.Col>
-                            <Table.Col>{packet.destination}</Table.Col>
-                            <Table.Col>{packet.protocol}</Table.Col>
-                            <Table.Col>{packet.length}</Table.Col>
-                            <Table.Col>{packet.info}</Table.Col>
-                            <Table.Col>{packet.value}</Table.Col>
-                            <Table.Col>{packet.timestamp.toString()}</Table.Col>
-                        </Table.Row>
-                    </Table.Body>
-                    ))}
-                </Table>
-            </div>
-            {graphData !== null && (
-                <div style={{display: "flex", justifyContent: "center", alignItems: "center", padding: "10px 5px"}}>
-                    <div>
-                        <Chart
-                            width={'450px'}
-                            height={'300px'}
-                            chartType="PieChart"
-                            loader={<div>Loading Chart</div>}
-                            data={graphData.command}
-                            options={{
-                                title: 'Commands',
-                                backgroundColor: "#f5f7fb",
-                                colors: ["#D8E3E7", "#51C4D3", "#126E82", "#132C33"]
-                            }}
-                            rootProps={{ 'data-testid': '1' }}
-                        />
-                    </div>
-                    <div>
-                        <Chart
-                            width={'450px'}
-                            height={'300px'}
-                            chartType="PieChart"
-                            loader={<div>Loading Chart</div>}
-                            data={graphData.isSuccess}
-                            options={{
-                                title: 'Error Ratio',
-                                backgroundColor: "#f5f7fb",
-                                colors: ["#D8E3E7", "#51C4D3", "#126E82", "#132C33"]
-                            }}
-                            rootProps={{ 'data-testid': '1' }}
-                        />
-                    </div>
-                    <div>
-                        {popupData === null && (
-                            <div style={{width: "500px", height: "300px", textAlign: "center", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", paddingTop: "10px"}}>Select the packet</div>
-                        )}
-                        {popupData !== null && (
-                            <>
-                            {popupData.success === true && (
-                                <div style={{width: "500px", height: "300px", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px 15px"}}>
-                                    <div>
-                                        <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
-                                        <div style={{display: "inline-block", float: "right"}}>
-                                            <Tag color="azure">Success</Tag>
-                                        </div> 
-                                    </div>
-                                    <div style={{padding: "30px 40px 0px 40px"}}>
-                                        <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.data.command}</div>
-                                        <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.data.command}</div>
-                                    </div>
-                                    <img src={Success} alt="Success" style={{padding: "5px 20px"}}/>  
-                                </div>
-                            )}
-                            {popupData.success === false && (
-                                <div style={{width: "500px", height: "300px", border: "1px solid #D8E3E7", borderRadius: "5px", background: "white", padding: "10px 15px"}}>
-                                    {(popupData.code === 1 || popupData.code === 0) && ( // response가 없거나 값이 이상한 경우
-                                        <div>
-                                            <div>
-                                                <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
-                                                <div style={{display: "inline-block", float: "right"}}>
-                                                    <Tag color="red">Error</Tag>
-                                                </div> 
-                                            </div>
-                                            <div style={{padding: "20px 50px 0px 90px"}}>
-                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.packet.command}</div>
-                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em", color: "red"}}>Error</div>
-                                            </div>
-                                            <img src={FailResponse} alt="Error" style={{padding: "5px 20px"}}/> 
-                                            <div style={{paddingTop: "20px", textAlign: "center", fontWeight: "700", color: "red"}}>{popupData.data}</div>
-                                        </div>
-                                    )}
-                                    {popupData.code === 2 && ( // 클라우드 기록에 실패한 경우
-                                        <div>
-                                            <div>
-                                                <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
-                                                <div style={{display: "inline-block", float: "right"}}>
-                                                    <Tag color="red">Error</Tag>
-                                                </div> 
-                                            </div>
-                                            <div style={{padding: "20px 50px 0px 90px"}}>
-                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em", color: "red"}}>Error</div>
-                                                <div style={{display: "inline-block", width: "50%", textAlign: "center", fontWeight: "600", fontSize: "1.3em"}}>{popupData.packet.command}</div>
-                                            </div>
-                                            <img src={FailCloud} alt="Error" style={{padding: "5px 20px"}}/> 
-                                            <div style={{paddingTop: "20px", textAlign: "center", fontWeight: "700", color: "red"}}>{popupData.data}</div>
-                                        </div>
-                                    )}
-                                    {popupData.code === 3 && ( // 그냥 이상한 경우
-                                        <div>
-                                            <div>
-                                                <div style={{display: "inline-block", fontWeight: "600"}}>No.{popupData.data.no}</div>
-                                                <div style={{display: "inline-block", float: "right"}}>
-                                                    <Tag color="red">Error</Tag>
-                                                </div> 
-                                            </div>
-                                            <div>
-                                                error
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            </>
-                        )}
-                    </div>
-                    
-                </div>
-            )}
-        </div>
-        
-    )
+    return <AppPresenter resultData={resultData} popupData={popupData} graphData={graphData} type={type} setType={setType} handleInputChange={handleInputChange} onClickTable={onClickTable} onClickRadio={onClickRadio}/>
 }
