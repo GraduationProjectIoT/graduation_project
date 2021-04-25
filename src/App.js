@@ -268,7 +268,6 @@ export default () => {
                 reader.onload = (() => {
                     return e => {
                         try {
-                            // TODO: 파싱해서 필요한 데이터 뽑기
                             const json = JSON.parse(e.target.result);
                             setResultData(() => {
                                 let result = [];
@@ -280,6 +279,8 @@ export default () => {
                                     result.push({"no": parseInt(packet._source.layers.frame["frame.number"]), "timestamp": "", "value": "", "info": "", "request": "", "success": false})
                                     const setMill = new Date(splitedDate.join(" "));
                                     setMill.setMilliseconds(0)
+                                    setMill.setFullYear(2021)
+                                    setMill.setMonth(3)
                                     result[result.length - 1]["timestamp"] = setMill
 
                                     if ("btatt" in packet._source.layers) {
@@ -304,10 +305,11 @@ export default () => {
                                 // packet 성공 여부 판단
                                 result.map(packet => {
                                     if (packet.info === "Request") {
-                                        const first = result.filter(element => element.no === packet.no + 1)[0];
-                                        const second = result.filter(element => element.no === packet.no + 2)[0];
-                                        const response = result.filter(element => element.no === packet.no + 3)[0];
-                                        if (first.info === "Empty PDU" && second.info === "Empty PDU" && response.info === "Response") {
+                                        const response = result.filter(element => element.no === packet.no + 3);
+                                        if (response.length === 0) {
+                                            packet.success = false;
+                                            return packet
+                                        } else if (response[0].info === "Response") {
                                             packet.success = true;
                                             return packet;
                                         } else {
@@ -330,7 +332,7 @@ export default () => {
                                         ]
                                     }
                                 });
-                                
+
                                 return result;
                             });
 
@@ -446,7 +448,25 @@ export default () => {
                 }
             }
         } else if (type === "ble") {
-            // TODO: popupdata도 세팅
+            if (packet.success === true) {
+                setPopupData(curr => {
+                    return {
+                        success: true,
+                        data: packet
+                    }
+                });
+            } else if (packet.success === false) {
+                const response = allPacket.filter(element => element.info === "Response" && element.no === packet.no + 2);
+                if (response.length < 1) {
+                    setPopupData(curr => {
+                        return { // response 패킷이 없는 경우
+                            success: false,
+                            data: "No Response",
+                            packet: packet
+                        }
+                    });
+                }
+            }
         }
     }
 
