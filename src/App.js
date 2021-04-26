@@ -461,7 +461,7 @@ export default () => {
                     setPopupData(curr => {
                         return { // response 패킷이 없는 경우
                             success: false,
-                            data: "No Response",
+                            data: "Wrong Response",
                             packet: packet
                         }
                     });
