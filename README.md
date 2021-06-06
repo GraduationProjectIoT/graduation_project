@@ -51,7 +51,7 @@ Zigbee packet은 앞서 말한 대로 복호화가 잘 되어 packet 분석을 �
  
 Cloud의 log는 Wafer가 Command에 따라 올바르게 잘 동작하였음이 확인되고 난 뒤에 기록된다. 따라서 이 경우는 cloud로 wafer의 동작이 전달되지 않은 경우라고 판단했다.
 
-이와 반대로 Cloud에 log가 남아있는데, packet sniffing이 되지 않았을 경우는 에러라고 판단하지 않았다. 우리는 다양한 에러 상황을 수집하고자 빠르게 wafer를 작동시켰다. 많은 packet 전달로 인해 해당 packet을 잡지 못하는 경우가 발생할 수 있기 때문입니다. 
+이와 반대로 Cloud에 log가 남아있는데, packet sniffing이 되지 않았을 경우는 에러라고 판단하지 않았다. 우리는 다양한 에러 상황을 수집하고자 빠르게 wafer를 작동시켰다. 많은 packet 전달로 인해 해당 packet을 잡지 못하는 경우가 발생할 수 있기 때문이다. 
 
 ## 2. BLE 통신
 ![슬라이드13](https://user-images.githubusercontent.com/42240771/120900672-12908f80-c671-11eb-8377-c75d3be45029.PNG)
